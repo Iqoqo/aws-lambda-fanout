@@ -104,7 +104,7 @@ function readFunctionParams {
       TABLE_NAME=${FUNCTION_NAME}Targets
     fi
 
-    TABLE_ARN=$(aws dynamodb describe-table --table-name ${TABLE_NAME} --query 'Table.TableArn' --output text ${CLI_PARAMS[@]} 2> /dev/null)
+    TABLE_ARN=$(${AWS_CLI} dynamodb describe-table --table-name ${TABLE_NAME} --query 'Table.TableArn' --output text ${CLI_PARAMS[@]} 2> /dev/null)
     if [ -z "${TABLE_ARN}" ] && [ "${ACTION}" != "deploy" ]; then
       echo "Unable to find specified source Amazon DynamoDB Table '${TABLE_NAME}' for function '${FUNCTION_NAME}'" 1>&2
       exit -1
@@ -245,7 +245,7 @@ function deployFanout {
   if [ -z "$FUNCTION_ARN" ]; then
     # Will be empty if we need to create the function
     if [ -z "$TABLE_ARN" ]; then
-      TABLE_ARN=$(aws dynamodb create-table --table-name ${TABLE_NAME} --attribute-definitions AttributeName=sourceArn,AttributeType=S AttributeName=id,AttributeType=S --key-schema AttributeName=sourceArn,KeyType=HASH AttributeName=id,KeyType=RANGE --provisioned-throughput ReadCapacityUnits=10,WriteCapacityUnits=1 --query 'TableDescription.TableArn' --output text ${CLI_PARAMS[@]} 2> /dev/null)
+      TABLE_ARN=$(${AWS_CLI} dynamodb create-table --table-name ${TABLE_NAME} --attribute-definitions AttributeName=sourceArn,AttributeType=S AttributeName=id,AttributeType=S --key-schema AttributeName=sourceArn,KeyType=HASH AttributeName=id,KeyType=RANGE --provisioned-throughput ReadCapacityUnits=10,WriteCapacityUnits=1 --query 'TableDescription.TableArn' --output text ${CLI_PARAMS[@]} 2> /dev/null)
       echo "Created Amazon DynamoDB $TABLE_NAME with ARN: $TABLE_ARN"
     fi
   
@@ -255,22 +255,22 @@ function deployFanout {
       fi
 
       # Search for an existing one by name
-      EXEC_ROLE_ARN=$(aws iam get-role --role-name $EXEC_ROLE_NAME --query 'Role.Arn' --output text ${DESTINATION_SEARCH_ARGS[@]} 2> /dev/null)
+      EXEC_ROLE_ARN=$(${AWS_CLI} iam get-role --role-name $EXEC_ROLE_NAME --query 'Role.Arn' --output text ${DESTINATION_SEARCH_ARGS[@]} 2> /dev/null)
       if [ -z "$EXEC_ROLE_ARN" ]; then
         # Create the role if we don't have one
-        EXEC_ROLE_ARN=$(aws iam create-role --role-name $EXEC_ROLE_NAME --assume-role-policy-document '{"Version": "2012-10-17", "Statement": [{"Action": "sts:AssumeRole", "Principal": {"Service": "lambda.amazonaws.com"}, "Effect": "Allow", "Sid": ""}]}' --query 'Role.Arn' --output text ${CLI_PARAMS[@]})
+        EXEC_ROLE_ARN=$(${AWS_CLI} iam create-role --role-name $EXEC_ROLE_NAME --assume-role-policy-document '{"Version": "2012-10-17", "Statement": [{"Action": "sts:AssumeRole", "Principal": {"Service": "lambda.amazonaws.com"}, "Effect": "Allow", "Sid": ""}]}' --query 'Role.Arn' --output text ${CLI_PARAMS[@]})
         if [ -z "${EXEC_ROLE_ARN}" ]; then
           echo "Unable to create specified AWS IAM Role '${EXEC_ROLE_NAME}'" 1>&2
           cd "$OLD"
           exit -1
         fi
-        aws iam attach-role-policy --role-name $EXEC_ROLE_NAME --policy-arn arn:aws:iam::aws:policy/AmazonDynamoDBReadOnlyAccess ${CLI_PARAMS[@]}
-        aws iam attach-role-policy --role-name $EXEC_ROLE_NAME --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaDynamoDBExecutionRole ${CLI_PARAMS[@]}
-        aws iam attach-role-policy --role-name $EXEC_ROLE_NAME --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaKinesisExecutionRole ${CLI_PARAMS[@]}
-        aws iam attach-role-policy --role-name $EXEC_ROLE_NAME --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole ${CLI_PARAMS[@]}
-        aws iam put-role-policy --role-name $EXEC_ROLE_NAME --policy-name Metrics --policy-document '{"Version": "2012-10-17", "Statement": [{"Action": ["cloudwatch:PutMetricData"], "Resource": ["*"], "Effect": "Allow", "Sid": ""}]}' ${CLI_PARAMS[@]}
-        aws iam put-role-policy --role-name $EXEC_ROLE_NAME --policy-name ReadConfiguration --policy-document '{"Version": "2012-10-17", "Statement": [{"Action": ["dynamodb:Query"], "Resource": ["'$TABLE_ARN'"], "Effect": "Allow"}]}' ${CLI_PARAMS[@]}
-        aws iam put-role-policy --role-name $EXEC_ROLE_NAME --policy-name PublishData --policy-document '{"Version": "2012-10-17", "Statement": [{"Action": ["sts:AssumeRole","kinesis:PutRecord*","sqs:SendMessage*","sns:Publish","firehose:PutRecordBatch","iot:Publish*","lambda:Invoke*","es:ESHttpPost"], "Resource": ["*"], "Effect": "Allow", "Sid": ""}]}' ${CLI_PARAMS[@]}
+        ${AWS_CLI} iam attach-role-policy --role-name $EXEC_ROLE_NAME --policy-arn arn:aws:iam::aws:policy/AmazonDynamoDBReadOnlyAccess ${CLI_PARAMS[@]}
+        ${AWS_CLI} iam attach-role-policy --role-name $EXEC_ROLE_NAME --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaDynamoDBExecutionRole ${CLI_PARAMS[@]}
+        ${AWS_CLI} iam attach-role-policy --role-name $EXEC_ROLE_NAME --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaKinesisExecutionRole ${CLI_PARAMS[@]}
+        ${AWS_CLI} iam attach-role-policy --role-name $EXEC_ROLE_NAME --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole ${CLI_PARAMS[@]}
+        ${AWS_CLI} iam put-role-policy --role-name $EXEC_ROLE_NAME --policy-name Metrics --policy-document '{"Version": "2012-10-17", "Statement": [{"Action": ["cloudwatch:PutMetricData"], "Resource": ["*"], "Effect": "Allow", "Sid": ""}]}' ${CLI_PARAMS[@]}
+        ${AWS_CLI} iam put-role-policy --role-name $EXEC_ROLE_NAME --policy-name ReadConfiguration --policy-document '{"Version": "2012-10-17", "Statement": [{"Action": ["dynamodb:Query"], "Resource": ["'$TABLE_ARN'"], "Effect": "Allow"}]}' ${CLI_PARAMS[@]}
+        ${AWS_CLI} iam put-role-policy --role-name $EXEC_ROLE_NAME --policy-name PublishData --policy-document '{"Version": "2012-10-17", "Statement": [{"Action": ["sts:AssumeRole","kinesis:PutRecord*","sqs:SendMessage*","sns:Publish","firehose:PutRecordBatch","iot:Publish*","lambda:Invoke*","es:ESHttpPost"], "Resource": ["*"], "Effect": "Allow", "Sid": ""}]}' ${CLI_PARAMS[@]}
         echo "Created AWS IAM Role $EXEC_ROLE_NAME with ARN: $EXEC_ROLE_ARN"
         echo "... Sleeping for 10 seconds to ensure the role has been propagated ..."
         sleep 10
@@ -297,7 +297,7 @@ function deployFanout {
       fi
     fi
 
-    FUNCTION_ARN=$(aws lambda "create-function" --function-name $FUNCTION_NAME --runtime $RUNTIME --description "This is an Amazon Kinesis and Amazon DynamoDB Streams fanout function, look at $TABLE_NAME DynamoDB table for configuration" --handler fanout.handler --role $EXEC_ROLE_ARN --memory-size $MEMORY_SIZE --timeout $TIMEOUT --zip-file fileb://fanout.zip ${VPC_PARAMS[@]} --query 'FunctionArn' --output text ${CLI_PARAMS[@]})
+    FUNCTION_ARN=$(${AWS_CLI} lambda "create-function" --function-name $FUNCTION_NAME --runtime $RUNTIME --description "This is an Amazon Kinesis and Amazon DynamoDB Streams fanout function, look at $TABLE_NAME DynamoDB table for configuration" --handler fanout.handler --role $EXEC_ROLE_ARN --memory-size $MEMORY_SIZE --timeout $TIMEOUT --zip-file fileb://fanout.zip ${VPC_PARAMS[@]} --query 'FunctionArn' --output text ${CLI_PARAMS[@]})
     if [ -z "${FUNCTION_ARN}" ]; then
       echo "Unable to create specified AWS Lambda Function '${FUNCTION_NAME}'" 1>&2
       cd "$OLD"
@@ -305,7 +305,7 @@ function deployFanout {
     fi
     echo "Created AWS Lambda Function $FUNCTION_NAME with ARN: $FUNCTION_ARN"
   else
-    FUNCTION_ARN=$(aws lambda update-function-code --function-name ${FUNCTION_NAME} --zip-file fileb://fanout.zip --query 'FunctionArn' --output text ${CLI_PARAMS[@]})
+    FUNCTION_ARN=$(${AWS_CLI} lambda update-function-code --function-name ${FUNCTION_NAME} --zip-file fileb://fanout.zip --query 'FunctionArn' --output text ${CLI_PARAMS[@]})
     if [ -z "${FUNCTION_ARN}" ]; then
       echo "Unable to update code of specified AWS Lambda Function '${FUNCTION_NAME}'" 1>&2
       cd "$OLD"
@@ -318,11 +318,11 @@ function deployFanout {
         EXEC_ROLE_NAME=${FUNCTION_NAME}Role
       fi
 
-      aws iam put-role-policy --role-name $EXEC_ROLE_NAME --policy-name Metrics --policy-document '{"Version": "2012-10-17", "Statement": [{"Action": ["cloudwatch:PutMetricData"], "Resource": ["*"], "Effect": "Allow", "Sid": ""}]}' ${CLI_PARAMS[@]}
+      ${AWS_CLI} iam put-role-policy --role-name $EXEC_ROLE_NAME --policy-name Metrics --policy-document '{"Version": "2012-10-17", "Statement": [{"Action": ["cloudwatch:PutMetricData"], "Resource": ["*"], "Effect": "Allow", "Sid": ""}]}' ${CLI_PARAMS[@]}
       echo "Updated IAM role $EXEC_ROLE_NAME with Metrics policy"
     fi
 
-    FUNCTION_ARN=$(aws lambda update-function-configuration --function-name ${FUNCTION_NAME} --runtime $RUNTIME --query 'FunctionArn' --output text ${CLI_PARAMS[@]})
+    FUNCTION_ARN=$(${AWS_CLI} lambda update-function-configuration --function-name ${FUNCTION_NAME} --runtime $RUNTIME --query 'FunctionArn' --output text ${CLI_PARAMS[@]})
     if [ -z "${FUNCTION_ARN}" ]; then
       echo "Unable to update specified AWS Lambda Function '${FUNCTION_NAME}'" 1>&2
       cd "$OLD"
@@ -337,8 +337,8 @@ function deployFanout {
 
 ## Destroys a fanout function and its associated Amazon DynamoDB table
 function destroyFanout {
-  aws dynamodb delete-table --table-name ${TABLE_NAME} ${CLI_PARAMS[@]} > /dev/null
-  aws lambda "delete-function" --function-name ${FUNCTION_NAME} ${CLI_PARAMS[@]} > /dev/null
+  ${AWS_CLI} dynamodb delete-table --table-name ${TABLE_NAME} ${CLI_PARAMS[@]} > /dev/null
+  ${AWS_CLI} lambda "delete-function" --function-name ${FUNCTION_NAME} ${CLI_PARAMS[@]} > /dev/null
   echo "Please check for the AWS IAM Role, we did not delete this"
 }
 
