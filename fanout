@@ -17,7 +17,6 @@
 #
 # This script is the main script for the command line utility
 #
-set -e
 
 SOURCE="${BASH_SOURCE[0]}"
 while [ -h "$SOURCE" ]; do # resolve $SOURCE until the file is no longer a symlink
@@ -42,7 +41,7 @@ function checkLambdaTarget {
         echo " - You specified a Role ARN, and name expansion can only be made on functions within your local user" 1>&2
         exit -1
       else
-        DESTINATION_ID=$(aws lambda "get-function" --function-name ${DESTINATION_NAME} --no-paginate --query 'Configuration.FunctionArn' --output text ${DESTINATION_SEARCH_ARGS[@]} 2> /dev/null | sed -E -n 's#^arn:aws:lambda:[a-z]+-[a-z]+-[0-9]:[0-9]{12}:function:([a-zA-Z0-9_-]{1,64})$#\1#p' )
+        DESTINATION_ID=$(${AWS_CLI} lambda "get-function" --function-name ${DESTINATION_NAME} --no-paginate --query 'Configuration.FunctionArn' --output text ${DESTINATION_SEARCH_ARGS[@]} 2> /dev/null | sed -E -n 's#^arn:aws:lambda:[a-z]+-[a-z]+-[0-9]:[0-9]{12}:function:([a-zA-Z0-9_-]{1,64})$#\1#p' )
         if [ -z "${DESTINATION_ID}" ]; then
           echo "Can not find function with name '${DESTINATION_NAME}' in the local account" 1>&2
           exit -1
@@ -62,7 +61,7 @@ function checkKinesisTarget {
         echo " - You specified a Role ARN, and name expansion can only be made on streams within your local user" 1>&2
         exit -1
       else
-        DESTINATION_ID=$(aws kinesis describe-stream --stream-name ${DESTINATION_NAME} --no-paginate --query 'StreamDescription.StreamARN' --output text ${DESTINATION_SEARCH_ARGS[@]} 2> /dev/null  | sed -E -n 's#^arn:aws:kinesis:[a-z]+-[a-z]+-[0-9]:[0-9]{12}:stream/([a-zA-Z0-9_-]{1,128})$#\1#p')
+        DESTINATION_ID=$(${AWS_CLI} kinesis describe-stream --stream-name ${DESTINATION_NAME} --no-paginate --query 'StreamDescription.StreamARN' --output text ${DESTINATION_SEARCH_ARGS[@]} 2> /dev/null  | sed -E -n 's#^arn:aws:kinesis:[a-z]+-[a-z]+-[0-9]:[0-9]{12}:stream/([a-zA-Z0-9_-]{1,128})$#\1#p')
         if [ -z "${DESTINATION_ID}" ]; then
           echo "Can not find stream with name '${DESTINATION_NAME}' in the local account" 1>&2
           exit -1
@@ -82,7 +81,7 @@ function checkFirehoseTarget {
         echo " - You specified a Role ARN, and name expansion can only be made on streams within your local user" 1>&2
         exit -1
       else
-        DESTINATION_ID=$(aws firehose describe-delivery-stream --delivery-stream-name ${DESTINATION_NAME} --query 'DeliveryStreamDescription.DeliveryStreamARN' --output text ${DESTINATION_SEARCH_ARGS[@]} 2> /dev/null | sed -E -n 's#^arn:aws:firehose:[a-z]+-[a-z]+-[0-9]:[0-9]{12}:deliverystream/([a-zA-Z0-9_-]{1,64})$#\1#p' )
+        DESTINATION_ID=$(${AWS_CLI} firehose describe-delivery-stream --delivery-stream-name ${DESTINATION_NAME} --query 'DeliveryStreamDescription.DeliveryStreamARN' --output text ${DESTINATION_SEARCH_ARGS[@]} 2> /dev/null | sed -E -n 's#^arn:aws:firehose:[a-z]+-[a-z]+-[0-9]:[0-9]{12}:deliverystream/([a-zA-Z0-9_-]{1,64})$#\1#p' )
         if [ -z "${DESTINATION_ID}" ]; then
           echo "Can not find stream with name '${DESTINATION_NAME}' in the local account" 1>&2
           exit -1
@@ -102,7 +101,7 @@ function checkSqsTarget {
         echo " - You specified a Role ARN, and name expansion can only be made on queues within your local user" 1>&2
         exit -1
       else
-        DESTINATION_ID=$(aws sqs get-queue-url --queue-name ${DESTINATION_NAME} --query 'QueueUrl' --output text ${DESTINATION_SEARCH_ARGS[@]} 2> /dev/null)
+        DESTINATION_ID=$(${AWS_CLI} sqs get-queue-url --queue-name ${DESTINATION_NAME} --query 'QueueUrl' --output text ${DESTINATION_SEARCH_ARGS[@]} 2> /dev/null)
         if [ -z "${DESTINATION_ID}" ]; then
           echo "Can not find queue with name '${DESTINATION_NAME}' in the local account" 1>&2
           exit -1
@@ -122,7 +121,7 @@ function checkIotTarget {
         echo " - You specified a Role ARN, and name expansion can only be made on topics within your local user" 1>&2
         exit -1
       else
-        DESTINATION_ID="$(aws iot describe-endpoint --output text ${DESTINATION_SEARCH_ARGS[@]})#${DESTINATION_NAME}"
+        DESTINATION_ID="$(${AWS_CLI} iot describe-endpoint --output text ${DESTINATION_SEARCH_ARGS[@]})#${DESTINATION_NAME}"
       fi
     fi
   fi
@@ -131,14 +130,14 @@ function checkIotTarget {
 ## Locates a destination Amazon SNS Topic
 function checkSnsTarget {
   if [ ! -z "$DESTINATION_NAME" ]; then
-    DESTINATION_ID=$( echo "$DESTINATION_NAME" | grep -E -e '^arn:aws:sns:[a-z]+-[a-z]+-[0-9]:[0-9]{12}:[a-zA-Z0-9_-][a-zA-Z0-9_-]{0,255}$' || true )
+    DESTINATION_ID=$( echo "$DESTINATION_NAME" | grep -E -e '^arn:aws:sns:[a-z]+-[a-z]+-[0-9]:[0-9]{12}:[a-zA-Z0-9_-][a-zA-Z0-9_-]{0,255}$')
     if [ -z "${DESTINATION_ID}" ]; then
       if [ ! -z "${DESTINATION_ROLE_ARN}" ]; then
         echo "Invalid ARN '${DESTINATION_NAME}', must be a fully qualified Amazon SNS Topic ARN" 1>&2
         echo " - You specified a Role ARN, and name expansion can only be made on topics within your local user" 1>&2
         exit -1
       else
-        DESTINATION_ID=$(aws sns list-topics --query "Topics[?ends_with(TopicArn,\`:${DESTINATION_NAME}\`)].TopicArn" --no-paginate --output text ${DESTINATION_SEARCH_ARGS[@]} 2> /dev/null)
+        DESTINATION_ID=$(${AWS_CLI} sns list-topics --query "Topics[?ends_with(TopicArn,\`:${DESTINATION_NAME}\`)].TopicArn" --no-paginate --output text ${DESTINATION_SEARCH_ARGS[@]} 2> /dev/null)
         if [ -z "${DESTINATION_ID}" ]; then
           echo "Can not find topic with name '${DESTINATION_NAME}' in the local account" 1>&2
           exit -1
@@ -158,7 +157,7 @@ function checkMemcachedTarget {
         echo " - You specified a Role ARN, and name expansion can only be made on topics within your local user" 1>&2
         exit -1
       else
-        DESTINATION_ID=$(aws elasticache describe-cache-clusters --cache-cluster-id ${DESTINATION_NAME} --query 'CacheClusters[0].ConfigurationEndpoint.[Address,to_string(Port)] | join(`:`, @)' --no-paginate --output text ${DESTINATION_SEARCH_ARGS[@]} 2> /dev/null)
+        DESTINATION_ID=$(${AWS_CLI} elasticache describe-cache-clusters --cache-cluster-id ${DESTINATION_NAME} --query 'CacheClusters[0].ConfigurationEndpoint.[Address,to_string(Port)] | join(`:`, @)' --no-paginate --output text ${DESTINATION_SEARCH_ARGS[@]} 2> /dev/null)
         if [ -z "${DESTINATION_ID}" ]; then
           echo "Can not find topic with name '${DESTINATION_NAME}' in the local account" 1>&2
           exit -1
@@ -178,7 +177,7 @@ function checkRedisTarget {
         echo " - You specified a Role ARN, and name expansion can only be made on clusters within your local user" 1>&2
         exit -1
       else
-        DESTINATION_ID=$(aws elasticache describe-replication-groups --replication-group-id ${DESTINATION_NAME} --query 'ReplicationGroups[0].NodeGroups[0].PrimaryEndpoint.[Address,to_string(Port)] | join(`:`, @)' --no-paginate --output text ${DESTINATION_SEARCH_ARGS[@]} 2> /dev/null)
+        DESTINATION_ID=$(${AWS_CLI} elasticache describe-replication-groups --replication-group-id ${DESTINATION_NAME} --query 'ReplicationGroups[0].NodeGroups[0].PrimaryEndpoint.[Address,to_string(Port)] | join(`:`, @)' --no-paginate --output text ${DESTINATION_SEARCH_ARGS[@]} 2> /dev/null)
         if [ -z "${DESTINATION_ID}" ]; then
           echo "Can not find cluster with name '${DESTINATION_NAME}' in the local account" 1>&2
           exit -1
@@ -202,7 +201,7 @@ function checkEsTarget {
           echo "Invalid parameters, you must specify --index" 1>&2
           exit -1
         fi
-        DESTINATION_ENDPOINT=$(aws es describe-elasticsearch-domain --domain-name ${DESTINATION_NAME} --query 'DomainStatus.Endpoint' --output text ${DESTINATION_SEARCH_ARGS[@]} 2> /dev/null)
+        DESTINATION_ENDPOINT=$(${AWS_CLI} es describe-elasticsearch-domain --domain-name ${DESTINATION_NAME} --query 'DomainStatus.Endpoint' --output text ${DESTINATION_SEARCH_ARGS[@]} 2> /dev/null)
         if [ -z "${DESTINATION_ENDPOINT}" ]; then
           echo "Can not find domain with name '${DESTINATION_NAME}' in the local account" 1>&2
           exit -1
