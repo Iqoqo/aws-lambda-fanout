@@ -17,6 +17,7 @@
 #
 # This script is the main script for the command line utility
 #
+set -e
 
 SOURCE="${BASH_SOURCE[0]}"
 while [ -h "$SOURCE" ]; do # resolve $SOURCE until the file is no longer a symlink
@@ -130,7 +131,7 @@ function checkIotTarget {
 ## Locates a destination Amazon SNS Topic
 function checkSnsTarget {
   if [ ! -z "$DESTINATION_NAME" ]; then
-    DESTINATION_ID=$( echo "$DESTINATION_NAME" | grep -E -e '^arn:aws:sns:[a-z]+-[a-z]+-[0-9]:[0-9]{12}:[a-zA-Z0-9_-][a-zA-Z0-9_-]{0,255}$')
+    DESTINATION_ID=$( echo "$DESTINATION_NAME" | grep -E -e '^arn:aws:sns:[a-z]+-[a-z]+-[0-9]:[0-9]{12}:[a-zA-Z0-9_-][a-zA-Z0-9_-]{0,255}$' || true)
     if [ -z "${DESTINATION_ID}" ]; then
       if [ ! -z "${DESTINATION_ROLE_ARN}" ]; then
         echo "Invalid ARN '${DESTINATION_NAME}', must be a fully qualified Amazon SNS Topic ARN" 1>&2
