@@ -85,8 +85,7 @@ function readFunctionParams {
       FUNCTION_NAME=fanout
       echo "No function name provided, using default name '${FUNCTION_NAME}'" 1>&2
     fi
-
-    FUNCTION_ARN=$(${AWS_CLI} lambda "get-function" "--function-name" ${FUNCTION_NAME} --query 'Configuration.FunctionArn' --output text ${CLI_PARAMS[@]} 2> /dev/null)
+    FUNCTION_ARN=$(aws lambda "get-function" "--function-name" ${FUNCTION_NAME} --query 'Configuration.FunctionArn' --output text ${CLI_PARAMS[@]} || true)
     if [ -z "${FUNCTION_ARN}" ] && [ "${ACTION}" != "deploy" ]; then
       echo "Unable to find specified AWS Lambda Function '${FUNCTION_NAME}'" 1>&2
       exit -1
