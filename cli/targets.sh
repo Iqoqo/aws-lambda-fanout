@@ -95,13 +95,13 @@ function readWorkerParams {
     fi
 
     if [ "${SOURCE_TYPE}" == "kinesis" ]; then
-      SOURCE_ARN=$(aws kinesis describe-stream --stream-name ${SOURCE_NAME} --query 'StreamDescription.StreamARN' --output text --no-paginate ${CLI_PARAMS[@]} 2> /dev/null)
+      SOURCE_ARN=$(${AWS_CLI} kinesis describe-stream --stream-name ${SOURCE_NAME} --query 'StreamDescription.StreamARN' --output text --no-paginate ${CLI_PARAMS[@]} 2> /dev/null)
       if [ -z "${SOURCE_ARN}" ] || [ "${SOURCE_ARN}" == "None" ]; then
         echo "readWorkerParams: Unable to find specified source Amazon Kinesis Stream '${SOURCE_NAME}'" 1>&2
         exit -1
       fi
     elif [ "${SOURCE_TYPE}" == "dynamodb" ]; then
-      SOURCE_ARN=$(aws dynamodbstreams list-streams --table-name ${SOURCE_NAME} --query 'Streams[0].StreamArn' --output text --no-paginate ${CLI_PARAMS[@]} 2> /dev/null)
+      SOURCE_ARN=$(${AWS_CLI} dynamodbstreams list-streams --table-name ${SOURCE_NAME} --query 'Streams[0].StreamArn' --output text --no-paginate ${CLI_PARAMS[@]} 2> /dev/null)
       if [ -z "${SOURCE_ARN}" ] || [ "${SOURCE_ARN}" == "None" ]; then
         echo "readWorkerParams: Unable to find specified source Amazon DynamoDB Stream associated to Amazon DynamoDB Table '${SOURCE_NAME}'" 1>&2
         exit -1
@@ -459,7 +459,7 @@ function buildObject {
 
 ## Registers the function to the specified source
 function hookFanoutSource {
-  HOOK_ID=$(aws lambda "list-event-source-mappings" "--function-name" $FUNCTION_NAME "--event-source-arn" "$SOURCE_ARN" --query 'EventSourceMappings[0].UUID' --output text  ${CLI_PARAMS[@]} 2> /dev/null)
+  HOOK_ID=$(${AWS_CLI} lambda "list-event-source-mappings" "--function-name" $FUNCTION_NAME "--event-source-arn" "$SOURCE_ARN" --query 'EventSourceMappings[0].UUID' --output text  ${CLI_PARAMS[@]} 2> /dev/null)
 
   if [ -z "${BATCH_SIZE}" ]; then
     BATCH_SIZE=100
@@ -471,24 +471,24 @@ function hookFanoutSource {
   if [ ! -z "$HOOK_ID" ] && [ "$HOOK_ID" != "None" ]; then
     echo "There is already a hook (ID: $HOOK_ID) for this source"
   else
-    aws lambda create-event-source-mapping --event-source-arn $SOURCE_ARN --function-name $FUNCTION_NAME --enabled --batch-size $BATCH_SIZE --starting-position $STARTING_POSITION ${CLI_PARAMS[@]}
+    ${AWS_CLI} lambda create-event-source-mapping --event-source-arn $SOURCE_ARN --function-name $FUNCTION_NAME --enabled --batch-size $BATCH_SIZE --starting-position $STARTING_POSITION ${CLI_PARAMS[@]}
   fi
 }
 
 ## Unregisters the function from the specified hook
 function unhookFanoutSource {
-  HOOK_ID=$(aws lambda "list-event-source-mappings" "--function-name" $FUNCTION_NAME "--event-source-arn" "$SOURCE_ARN" --query 'EventSourceMappings[0].UUID' --output text  ${CLI_PARAMS[@]} 2> /dev/null)
+  HOOK_ID=$(${AWS_CLI} lambda "list-event-source-mappings" "--function-name" $FUNCTION_NAME "--event-source-arn" "$SOURCE_ARN" --query 'EventSourceMappings[0].UUID' --output text  ${CLI_PARAMS[@]} 2> /dev/null)
 
   if [ -z "$HOOK_ID" ] || [ "$HOOK_ID" == "None" ]; then
     echo "There is no hook for this source"
   else
-    aws lambda delete-event-source-mapping --uuid $HOOK_ID ${CLI_PARAMS[@]}
+    ${AWS_CLI} lambda delete-event-source-mapping --uuid $HOOK_ID ${CLI_PARAMS[@]}
   fi
 }
 
 ## Unregisters the function from the specified hook
 function setHookFanoutSourceState {
-  HOOK_ID=$(aws lambda "list-event-source-mappings" "--function-name" $FUNCTION_NAME "--event-source-arn" "$SOURCE_ARN" --query 'EventSourceMappings[0].UUID' --output text  ${CLI_PARAMS[@]} 2> /dev/null)
+  HOOK_ID=$(${AWS_CLI} lambda "list-event-source-mappings" "--function-name" $FUNCTION_NAME "--event-source-arn" "$SOURCE_ARN" --query 'EventSourceMappings[0].UUID' --output text  ${CLI_PARAMS[@]} 2> /dev/null)
 
   local ENABLE_PARAM=
   if [ "$1" == "active" ]; then
@@ -500,7 +500,7 @@ function setHookFanoutSourceState {
   if [ -z "$HOOK_ID" ] || [ "$HOOK_ID" == "None" ]; then
     echo "There is no hook for this source"
   else
-    aws lambda update-event-source-mapping --uuid $HOOK_ID $ENABLE_PARAM ${CLI_PARAMS[@]}
+    ${AWS_CLI} lambda update-event-source-mapping --uuid $HOOK_ID $ENABLE_PARAM ${CLI_PARAMS[@]}
   fi
 }
 
@@ -514,21 +514,21 @@ function registerFanoutTarget {
   fi
 
   buildObject create
-  aws dynamodb put-item --table-name ${TABLE_NAME} --item "{${OBJECT_DEFINITION}}"  ${CLI_PARAMS[@]} > /dev/null
+  ${AWS_CLI} dynamodb put-item --table-name ${TABLE_NAME} --item "{${OBJECT_DEFINITION}}"  ${CLI_PARAMS[@]} > /dev/null
 }
 
 ## Updates a named target to the list of targets of the fanout function for a specific source
 function updateFanoutTarget {
   buildObject update
-  aws dynamodb update-item --table-name ${TABLE_NAME} --key "{\"sourceArn\":{\"S\":\"${SOURCE_ARN}\"}, \"id\":{\"S\":\"${WORKER_ID}\"}}" --update-expression "${OBJECT_UPDATE}" --condition-expression "attribute_exists(id)" --expression-attribute-names "{${OBJECT_ALIAS}}" --expression-attribute-values "{${OBJECT_DEFINITION}}" ${CLI_PARAMS[@]} > /dev/null
+  ${AWS_CLI} dynamodb update-item --table-name ${TABLE_NAME} --key "{\"sourceArn\":{\"S\":\"${SOURCE_ARN}\"}, \"id\":{\"S\":\"${WORKER_ID}\"}}" --update-expression "${OBJECT_UPDATE}" --condition-expression "attribute_exists(id)" --expression-attribute-names "{${OBJECT_ALIAS}}" --expression-attribute-values "{${OBJECT_DEFINITION}}" ${CLI_PARAMS[@]} > /dev/null
 }
 
 ## Removes a named target from the list of targets of the fanout function for a specific source
 function unregisterFanoutTarget {
-  aws dynamodb delete-item --table-name ${TABLE_NAME} --key "{\"sourceArn\":{\"S\":\"${SOURCE_ARN}\"}, \"id\":{\"S\":\"${WORKER_ID}\"}}" ${CLI_PARAMS[@]} > /dev/null
+  ${AWS_CLI} dynamodb delete-item --table-name ${TABLE_NAME} --key "{\"sourceArn\":{\"S\":\"${SOURCE_ARN}\"}, \"id\":{\"S\":\"${WORKER_ID}\"}}" ${CLI_PARAMS[@]} > /dev/null
 }
 
 ## Lists the targets from the list of targets of the fanout function for a specific source
 function listFanoutTargets {
-  aws dynamodb query --table-name ${TABLE_NAME} --key-condition-expression "sourceArn = :sourceArn" --expression-attribute-values "{\":sourceArn\":{\"S\":\"${SOURCE_ARN}\"}}" --query 'Items[*].{_1_id: id.S, _2_type: type.S, _3_destination: destination.S, _4_active: active.BOOL}' --output table ${CLI_PARAMS[@]}
+  ${AWS_CLI} dynamodb query --table-name ${TABLE_NAME} --key-condition-expression "sourceArn = :sourceArn" --expression-attribute-values "{\":sourceArn\":{\"S\":\"${SOURCE_ARN}\"}}" --query 'Items[*].{_1_id: id.S, _2_type: type.S, _3_destination: destination.S, _4_active: active.BOOL}' --output table ${CLI_PARAMS[@]}
 }
