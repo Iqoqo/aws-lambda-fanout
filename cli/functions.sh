@@ -128,7 +128,7 @@ function readFunctionConfigParams {
   MEMORY_SIZE=128
   TIMEOUT=30
   SECURITY_GROUPS=
-  RUNTIME=nodejs8.10
+  RUNTIME=nodejs10.x
 
   while [ $# -ne 0 ]; do
     CODE=$1
